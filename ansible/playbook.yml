@@ -1,2 +1,187 @@
-"---" 
-"# Ansible playbook" 
+cd C:\Users\Nikit\Desktop\monitoring-stack\ansible
+
+# Создаем рабочий плейбук
+@'
+---
+- name: Deploy Monitoring Stack on Ubuntu
+  hosts: monitoring
+  become: yes
+  gather_facts: yes
+
+  vars:
+    docker_compose_version: "v2.20.2"
+    monitoring_dir: "/opt/monitoring"
+
+  tasks:
+    # 1. Обновление системы
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    # 2. Установка зависимостей
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - gnupg
+          - lsb-release
+        state: present
+
+    # 3. Добавление Docker репозитория
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    # 4. Установка Docker
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    # 5. Запуск Docker
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # 6. Добавление пользователя в группу docker
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # 7. Создание директорий для мониторинга
+    - name: Create monitoring directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      loop:
+        - "{{ monitoring_dir }}"
+        - "{{ monitoring_dir }}/prometheus"
+        - "{{ monitoring_dir }}/grafana/provisioning/dashboards"
+        - "{{ monitoring_dir }}/grafana/provisioning/datasources"
+
+    # 8. Создание конфига Prometheus
+    - name: Create Prometheus configuration
+      copy:
+        dest: "{{ monitoring_dir }}/prometheus/prometheus.yml"
+        content: |
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+
+          scrape_configs:
+            - job_name: 'prometheus'
+              static_configs:
+                - targets: ['localhost:9090']
+
+            - job_name: 'node'
+              static_configs:
+                - targets: ['localhost:9100']
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+
+    # 9. Создание docker-compose.yml
+    - name: Create docker-compose.yml
+      copy:
+        dest: "{{ monitoring_dir }}/docker-compose.yml"
+        content: |
+          version: '3.8'
+
+          services:
+            prometheus:
+              image: prom/prometheus:latest
+              container_name: prometheus
+              restart: unless-stopped
+              ports:
+                - "9090:9090"
+              volumes:
+                - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+                - prometheus_data:/prometheus
+              command:
+                - '--config.file=/etc/prometheus/prometheus.yml'
+                - '--storage.tsdb.path=/prometheus'
+                - '--web.console.libraries=/etc/prometheus/console_libraries'
+                - '--web.console.templates=/etc/prometheus/consoles'
+                - '--storage.tsdb.retention.time=200h'
+                - '--web.enable-lifecycle'
+
+            grafana:
+              image: grafana/grafana:latest
+              container_name: grafana
+              restart: unless-stopped
+              ports:
+                - "3000:3000"
+              environment:
+                - GF_SECURITY_ADMIN_PASSWORD=admin
+                - GF_INSTALL_PLUGINS=grafana-piechart-panel
+                - GF_SECURITY_ALLOW_EMBEDDING=true
+              volumes:
+                - grafana_data:/var/lib/grafana
+              depends_on:
+                - prometheus
+
+            node-exporter:
+              image: prom/node-exporter:latest
+              container_name: node-exporter
+              restart: unless-stopped
+              ports:
+                - "9100:9100"
+              volumes:
+                - /proc:/host/proc:ro
+                - /sys:/host/sys:ro
+                - /:/rootfs:ro
+              command:
+                - '--path.procfs=/host/proc'
+                - '--path.sysfs=/host/sys'
+                - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+          volumes:
+            prometheus_data:
+            grafana_data:
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+
+    # 10. Запуск контейнеров
+    - name: Start monitoring stack
+      docker_compose:
+        project_src: "{{ monitoring_dir }}"
+        state: present
+        recreate: always
+        pull: yes
+
+    # 11. Проверка работы
+    - name: Check running containers
+      command: docker ps
+      register: docker_ps
+      changed_when: false
+
+    - name: Show running containers
+      debug:
+        msg: "{{ docker_ps.stdout_lines }}"
+'@ | Out-File -FilePath playbook.yml -Encoding UTF8 -Force
+
+echo "Playbook создан! Теперь запускаем..."

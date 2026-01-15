@@ -1,4 +1,3 @@
-# terraform/variables.tf
 variable "yandex_cloud_id" {
   description = "Yandex Cloud Cloud ID"
   type        = string
@@ -14,5 +13,5 @@ variable "yandex_folder_id" {
 variable "ssh_public_key_path" {
   description = "Path to SSH public key"
   type        = string
-  default     = "~/.ssh/id_rsa.pub"
-}"# Variables" 
+  default     = "C:/Users/Nikit/.ssh/id_rsa.pub"
+}

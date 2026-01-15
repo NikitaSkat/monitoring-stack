@@ -1,0 +1,6 @@
+﻿provider_installation {
+  dev_overrides {
+    "yandex-cloud/yandex" = "../yandex-provider"
+  }
+  direct {}
+}
