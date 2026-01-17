@@ -33,3 +33,11 @@ Infrastructure as Code проект для развертывания стека
 
 ### Структура проекта
 ![Project structure](screenshots/structure.png)
+
+## 📸 Настройка Prometheus и Grafana
+
+### Prometheus
+![Node Exporter for VM monitoring] (screenshots/prometheus2.png)
+
+### Grafana  
+![Grafana Dashboard](screenshots/grafana2.png)
