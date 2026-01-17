@@ -1,0 +1,4 @@
+﻿# Copy this file to terraform.tfvars and fill with your values
+yandex_cloud_id  = "your-cloud-id-here"
+yandex_folder_id = "your-folder-id-here"
+# ssh_public_key_path = "C:/Users/Nikit/.ssh/id_rsa.pub"  # Uncomment for Windows

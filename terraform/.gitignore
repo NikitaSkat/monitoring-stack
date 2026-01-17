@@ -1,0 +1,21 @@
+﻿# Локальные файлы Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Файлы с переменными (секреты)
+terraform.tfvars
+*.tfvars.json
+
+# Файлы переопределения
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Файлы планов
+*.tfplan
+
+# Логи
+crash.log
