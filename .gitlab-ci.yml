@@ -1,0 +1,27 @@
+stages:
+  - test
+  - build
+
+hello-world:
+  stage: test
+  script:
+    - echo "Hello, GitLab CI!"
+    - echo "This is my first pipeline"
+    - echo "Commit SHA: $CI_COMMIT_SHA"
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+
+check-environment:
+  stage: test
+  script:
+    - echo "Checking environment..."
+    - uname -a
+    - pwd
+    - ls -la
+
+build-app:
+  stage: build
+  script:
+    - echo "Building application..."
+    - echo "This would be docker build or npm build"
+  only:
+    - main
