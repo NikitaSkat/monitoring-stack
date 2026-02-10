@@ -1,0 +1,20 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Бэкапы и временные файлы
+*.bak
+*.backup
+*.tmp
+
+# Секреты
+*.json
+*.key
+.yc/
+sa-key.json

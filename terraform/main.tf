@@ -8,18 +8,18 @@
 }
 
 provider "yandex" {
-  # Эти значения мы зададим в variables.tf
-  cloud_id  = var.yandex_cloud_id
-  folder_id = var.yandex_folder_id
-  zone      = "ru-central1-a"
+  service_account_key_file = "C:/Users/Nikit/.yc/sa-key.json"   # ← обязательно добавь это!
+  cloud_id                 = var.yandex_cloud_id
+  folder_id                = var.yandex_folder_id
+  zone                     = "ru-central1-a"
 }
 
-# Создаём сеть
+# Сеть
 resource "yandex_vpc_network" "monitoring_network" {
   name = "monitoring-network-tf"
 }
 
-# Создаём подсеть
+# Подсеть
 resource "yandex_vpc_subnet" "monitoring_subnet" {
   name           = "monitoring-subnet-tf"
   network_id     = yandex_vpc_network.monitoring_network.id
@@ -27,14 +27,18 @@ resource "yandex_vpc_subnet" "monitoring_subnet" {
   zone           = "ru-central1-a"
 }
 
-# Создаём ВМ для мониторинга
+data "yandex_compute_image" "ubuntu_2204" {
+  family = "ubuntu-2204-lts"  # чтобы взять свежую версию Ubuntu 22.04 LTS
+}
+
+# ВМ для мониторинга
 resource "yandex_compute_instance" "monitoring_server" {
   name        = "monitoring-tf"
   description = "Monitoring server created by Terraform"
   platform_id = "standard-v3"
   zone        = "ru-central1-a"
 
-  # Ресурсы (минимальные для экономии)
+  # Ресурсы
   resources {
     cores  = 2
     memory = 2  # GB
@@ -42,11 +46,12 @@ resource "yandex_compute_instance" "monitoring_server" {
 
   # Диск с Ubuntu 22.04
   boot_disk {
-    initialize_params {
-      image_id = "fd8vmcue7aajpmeo39kk" # Ubuntu 22.04 LTS
-      size     = 15 # GB
-    }
+  initialize_params {
+    image_id = data.yandex_compute_image.ubuntu_2204.id
+    size     = 15
+    type     = "network-hdd"  # явное указание
   }
+}
 
   # Сетевой интерфейс
   network_interface {
@@ -56,8 +61,40 @@ resource "yandex_compute_instance" "monitoring_server" {
 
   # SSH ключ для доступа
   metadata = {
-    ssh-keys = "ubuntu:${file(var.ssh_public_key_path)}"
-  }
+  ssh-keys = "ubuntu:${file(pathexpand(var.ssh_public_key_path))}"
+
+  user-data = <<EOF
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+runcmd:
+  # Установка Docker
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Включаем и запускаем Docker
+  - systemctl enable docker
+  - systemctl start docker
+
+  # Добавляем пользователя ubuntu в группу docker
+  - usermod -aG docker ubuntu
+
+  # Проверяем установку
+  - docker --version
+  - docker compose version
+EOF
+}
 
   # Метки для удобства
   labels = {
@@ -67,7 +104,7 @@ resource "yandex_compute_instance" "monitoring_server" {
   }
 }
 
-# Выводим IP адрес для подключения
+# IP адрес для подключения
 output "vm_public_ip" {
   value       = yandex_compute_instance.monitoring_server.network_interface.0.nat_ip_address
   description = "Public IP address of monitoring server"
